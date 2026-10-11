@@ -1,0 +1,10 @@
+{
+  "name": "@goreecloud/automations-core",
+  "private": true,
+  "version": "0.1.0-dev.0",
+  "description": "Offline-capable GoreeCloud Automations workflow engine development foundation",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": { "test": "node --test tests/*.test.mjs" },
+  "license": "UNLICENSED"
+}
