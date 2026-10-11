@@ -1,0 +1,11 @@
+{
+  "id": "offline-morning",
+  "version": 1,
+  "name": "Morning notes and optional notification",
+  "enabled": true,
+  "triggers": [{ "type": "event", "name": "alarm.dismissed" }],
+  "steps": [
+    { "id": "create-note", "action": "local.note", "input": { "title": "Morning check-in" } },
+    { "id": "send-summary", "action": "remote.send", "when": { "path": "payload.share", "op": "eq", "value": true }, "input": { "template": "morning-summary" } }
+  ]
+}
