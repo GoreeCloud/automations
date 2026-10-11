@@ -33,6 +33,35 @@ export function redoHistory(history) {
     present: clone(history.future[0]), future: history.future.slice(1), limit: history.limit, group: null };
 }
 
+/** Validate and clone a bounded, non-executable starter catalog. */
+export function loadStarters(raw, catalog) {
+  if (!Array.isArray(raw) || raw.length > 16 || raw.length < 1) {
+    throw new TypeError('Invalid starter catalog');
+  }
+  const ids = new Set();
+  return raw.map(template => {
+    if (!template || typeof template !== 'object' || Array.isArray(template) ||
+        !safeId.test(template.id || '') || ids.has(template.id) ||
+        typeof template.label !== 'string' || !template.label.trim() || template.label.length > 90 ||
+        typeof template.description !== 'string' || template.description.length > 240 ||
+        !template.workflow || template.workflow.enabled !== false) {
+      throw new TypeError('Invalid starter template');
+    }
+    validateDraft(template.workflow, catalog);
+    ids.add(template.id);
+    return clone(template);
+  });
+}
+
+export function selectStarter(starters, id, catalog) {
+  const entry = starters.find(item => item.id === id);
+  if (!entry) throw new RangeError('Unknown starter template');
+  const draft = clone(entry.workflow);
+  draft.enabled = false;
+  validateDraft(draft, catalog);
+  return draft;
+}
+
 export function createDraft() {
   return {
     id: 'new-workflow', version: 1, name: 'Untitled workflow', enabled: false,
