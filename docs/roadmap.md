@@ -20,8 +20,8 @@
 - [x] Offline local step + deferred network action with resume, bulk resume and queued-job cancellation.
 - [x] Stable run keys with within-worker duplicate prevention and atomic-store contract.
 - [x] Explicit success/failed/blocked/waiting status, sanitized transition hook and isolated telemetry failures.
-- [x] Bounded host-driven retry scheduling for replay-safe actions with persisted deadlines; native wakeup and device-level acceptance remain pending.
-- [x] Local test suite (28 passing locally as of October 11 development cycle).
+- [x] Bounded exponential backoff for host-registered replay-safe actions, persisted retry deadline and host-driven due queue; native wakeup and process-kill testing remain pending.
+- [x] Local test suite (28 passing as of October 11 development cycle).
 - [ ] Authoritative GitHub CI validation on the exact candidate branch.
 - [x] Development-only encrypted Node snapshot storage with restart, integrity and missing-journal tests; interrupted unsafe side effects fail closed.
 - [ ] Production-grade transactional storage, OS-protected keys, recovery drills, power-loss tests and native device qualification.
@@ -48,3 +48,9 @@
 | Duplicate or lost actions at restart or cross-device handoff | Durable journal, atomic event claims, stable idempotency keys, at-least-once guarantees, target-side dedup, test recovery |
 | Private data leak through workflow logs or sharing | Consent/purpose checks, schema-scoped data minimization, encryption, redaction, export sanitization |
 | n8n/Zapier/Shortcuts import incompatibility | Versioned importer adapters, dry-run diff and unsupported-feature reports; no misleading 100% import promise |
+
+### Authoring preview and process-interruption evidence (development cycle)
+
+- Added portable read-only workflow preflight, metadata catalog and offline CLI for a practical authoring/inspection flow, without granting permissions or invoking actions.
+- Added a separate-process SIGKILL regression that validates non-idempotent side-effect uncertainty is blocked after reopening encrypted state. Process termination does not substitute for device power-loss qualification.
+- Next: Glaze workflow editor with an explicit review/activate flow, native host adapters, real secure key custody, transactional storage, and OS background-execution qualification.

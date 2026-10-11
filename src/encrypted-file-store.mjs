@@ -58,8 +58,9 @@ export class EncryptedFileStore {
       if (error.code === 'EEXIST') throw new Error('STORE_ALREADY_OPEN: inspect and reconcile an existing lock before recovery');
       throw error;
     }
+    let store;
     try {
-      const store = new EncryptedFileStore(initToken);
+      store = new EncryptedFileStore(initToken);
       store.#directory = folder;
       store.#key = Buffer.from(key);
       store.#lockFile = lockFile;
@@ -69,6 +70,7 @@ export class EncryptedFileStore {
       await store.#initialize();
       return store;
     } catch (error) {
+      if (store?.#key) store.#key.fill(0);
       await handle.close();
       await rm(lockFile, { force: true });
       throw error;

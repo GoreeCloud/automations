@@ -65,6 +65,40 @@ function validateWorkflow(input) {
   return w;
 }
 
+/**
+ * Side-effect-free, portable preflight for workflow authoring.
+ * `actions` describes metadata only; no execute functions or authorization adapters
+ * are called. A preflight decision is never a grant of permission.
+ */
+export function previewWorkflow(definition, { actions = {}, payload = {}, online = false } = {}) {
+  const workflow = validateWorkflow(definition);
+  if (!actions || typeof actions !== 'object' || Array.isArray(actions) ||
+      !payload || typeof payload !== 'object' || Array.isArray(payload) ||
+      typeof online !== 'boolean') {
+    throw new TypeError('Preview needs action metadata, object payload, and boolean connectivity');
+  }
+  const steps = workflow.steps.map(step => {
+    const base = { stepId: step.id, action: step.action };
+    if (!workflow.enabled) return { ...base, decision: 'disabled', authorizationRequired: false };
+    if (!matches(step.when, payload)) return { ...base, decision: 'skipped', authorizationRequired: false };
+    if (!Object.prototype.hasOwnProperty.call(actions, step.action)) {
+      return { ...base, decision: 'unavailable', authorizationRequired: false };
+    }
+    const action = actions[step.action];
+    if (!action || !safeId.test(action.capability || '') ||
+        typeof action.requiresNetwork !== 'boolean' ||
+        typeof action.replaySafe !== 'boolean') {
+      throw new TypeError('Invalid preflight action metadata');
+    }
+    const status = step.retry && !action.replaySafe ? 'unsafe_retry' :
+      action.requiresNetwork && !online ? 'waiting_network' : 'authorization_required';
+    return { ...base, decision: status, capability: action.capability,
+      requiresNetwork: action.requiresNetwork, authorizationRequired: true };
+  });
+  return { workflowId: workflow.id, version: workflow.version,
+    enabled: workflow.enabled, steps, sideEffectsExecuted: false, authorizationGranted: false };
+}
+
 function matches(when, payload) {
   if (!when) return true;
   const path = when.path.slice('payload.'.length).split('.');
@@ -108,6 +142,15 @@ export class WorkflowEngine {
     return value.id;
   }
 
+  preview(workflowId, { payload = {} } = {}) {
+    const workflow = this.#workflows.get(workflowId);
+    if (!workflow) throw new Error('Unknown workflow');
+    const actions = Object.fromEntries([...this.#actions.entries()].map(([name, metadata]) =>
+      [name, { capability: metadata.capability,
+        requiresNetwork: metadata.requiresNetwork, replaySafe: metadata.replaySafe }]));
+    return previewWorkflow(workflow, { actions, payload, online: this.online() });
+  }
+
   registerAction(name, { execute, requiresNetwork = false, capability, replaySafe = false } = {}) {
     if (!safeId.test(name || '') || typeof execute !== 'function' ||
         !safeId.test(capability || '') || typeof requiresNetwork !== 'boolean' || typeof replaySafe !== 'boolean') {
@@ -119,7 +162,7 @@ export class WorkflowEngine {
   async emit(eventName, eventId, payload = {}, actor = null) {
     if (!safeId.test(eventName || '')) throw new TypeError('Invalid event name');
     const matchesEvent = [...this.#workflows.values()].filter(w => w.enabled &&
-      w.triggers.some(t => t.name === eventName));
+      w.triggers.some(t => t.type === 'event' && t.name === eventName));
     return Promise.all(matchesEvent.map(w => this.run(w.id, { eventId, payload, actor })));
   }
 

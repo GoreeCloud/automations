@@ -15,7 +15,9 @@ The proposed authority is *what work should run, where, when, with which approve
 - Explicit authorization on **every step** and default-deny behavior; unavailable actions are blocked.
 - Distinct succeeded, failed, blocked, skipped, waiting-network and waiting-retry state; sanitized operational transition events.
 - Node development encrypted-file persistence (AES-256-GCM, single-writer lock, atomic snapshot replacement, missing-journal marker); future native runtimes still require OS-protected key management, transactional storage and device acceptance.
-- Twenty-eight automated Node tests passing locally in the October 11 development cycle; exact-head GitHub CI must be revalidated after each new commit and actual device behavior remains unverified.
+- Read-only portable workflow preview API and offline Node CLI using a local action metadata catalog: explain conditions, network requirements, permission requirements, and unsafe retry hazards without running actions.
+- Process-termination regression coverage using an isolated test child killed after a persisted checkpoint. Production device crash/power-loss behavior remains unverified.
+- Node automated tests run locally in the October 11 development cycle; exact-head GitHub CI must be revalidated after each new commit and actual device behavior remains unverified.
 
 **This is not a usable native mobile/TV app, a workflow designer, an OS wakeup scheduler, or a persisted offline background-service implementation yet.** Registration and action implementations are injected by host applications. No external HTTP service, AI provider, OS automation, privileged device control, or cloud account is enabled by this core.
 
@@ -25,6 +27,12 @@ With Node.js 20+:
 
 ```bash
 npm test
+```
+
+Inspect the example workflow **without running any action** (safe read-only preflight):
+
+```sh
+node bin/preview.mjs examples/offline-morning.json --catalog examples/action-catalog.json --payload examples/preview-payload.json
 ```
 
 A host registers a permitted action and explicitly wires the authorization adapter:
@@ -54,4 +62,4 @@ console.log(job.status); // blocked until remote.send is registered, or skipped 
 
 Treat workflow and trigger JSON as untrusted input. Production adapters MUST enforce authoritative GoreeCloud Identity, Privacy Shield, Wardveil Security, and GoreeCloud Policy decisions, and MUST never use permissive placeholder authorization. Host actions must enforce scoped permissions at the actual resource boundary and deduplicate stable idempotency keys. Do not record secrets in workflow definitions. Event sources must generate stable IDs. For this Node development slice, `EncryptedFileStore.open({directory, key})` requires a 32-byte key supplied by an authorized host secret manager and a private directory. It holds an exclusive single-node writer lock and encrypts state using AES-256-GCM; it is not qualified as production storage. A stale writer lock must be investigated before controlled recovery and must never be automatically deleted. Recovery blocks uncertain non-idempotent side effects with `ACTION_OUTCOME_UNKNOWN`; an action must declare `replaySafe: true` only if its real target durably deduplicates the stable key. Future native storage must be encrypted, transactional, device-managed, and backed up according to Everkeep policy.
 
-See [Architecture](docs/architecture.md), [Scheduling contract](docs/scheduling.md), [Recovery contract](docs/recovery.md), [Retry contract](docs/retries.md), and [Product roadmap](docs/roadmap.md).
+See [Architecture](docs/architecture.md), [Preview contract](docs/preview.md), [Scheduling contract](docs/scheduling.md), [Retry contract](docs/retries.md), [Recovery contract](docs/recovery.md), and [Product roadmap](docs/roadmap.md).

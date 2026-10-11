@@ -1,0 +1,4 @@
+{
+  "local.note": { "capability": "notes.write", "requiresNetwork": false, "replaySafe": false },
+  "remote.send": { "capability": "mail.send", "requiresNetwork": true, "replaySafe": true }
+}
