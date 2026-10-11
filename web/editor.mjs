@@ -1,12 +1,14 @@
 import {
   createDraft, validateDraft, importDraft, exportDraft, appendStep,
   removeStep, moveStep, updateStep, setTriggerType, workflowIssues,
+  createHistory, recordHistory, undoHistory, redoHistory,
 } from './editor-state.mjs';
 
 const $ = id => document.getElementById(id);
 const MAX_FILE_BYTES = 256 * 1024;
 const MAX_INPUT_CHARS = 8192;
-let workflow = createDraft();
+let history = createHistory(createDraft());
+let workflow = history.present;
 let catalog = {};
 let unsaved = false;
 const invalidJsonFields = new Set();
@@ -16,22 +18,41 @@ function notice(message, error = false) {
   $('status').classList.toggle('error', error);
 }
 
-function markEdited() {
+function renderHistory() {
+  $('undo-workflow').disabled = history.past.length === 0;
+  $('redo-workflow').disabled = history.future.length === 0;
+}
+
+function commitWorkflow(next, group = null) {
+  history = recordHistory(history, next, group);
+  workflow = history.present;
   unsaved = true;
   renderStatus();
+}
+
+function restoreHistory(direction) {
+  const updated = direction === 'undo' ? undoHistory(history) : redoHistory(history);
+  if (updated === history) return;
+  history = updated;
+  workflow = history.present;
+  invalidJsonFields.clear();
+  unsaved = true; // Undoing an edit does not overwrite the user's last exported file.
+  $('preview-output').replaceChildren();
+  render();
+  notice(`${direction === 'undo' ? 'Undid' : 'Redid'} workflow edit. Export JSON to save. No actions have run.`);
 }
 
 function renderStatus() {
   const { error } = workflowIssues(workflow, catalog, {}, false);
   const invalid = Boolean(error || invalidJsonFields.size);
   $('export-workflow').disabled = invalid;
+  renderHistory();
   if (invalid) notice('Invalid definition. Fix the highlighted field or check workflow identifiers and step settings.', true);
   else notice(unsaved ? 'Unsaved definition. Export JSON to keep your changes. No actions have run.' : 'Ready. No actions have run.');
 }
 
-function edit(patch) {
-  workflow = { ...workflow, ...patch };
-  markEdited();
+function edit(patch, group = null) {
+  commitWorkflow({ ...workflow, ...patch }, group);
 }
 
 function labelWith(controlText, control, className = '') {
@@ -54,11 +75,10 @@ function inputText(value, onChange, { type = 'text', maxLength, min, max, step }
   return input;
 }
 
-function updateAt(index, patch, rerender = false) {
+function updateAt(index, patch, rerender = false, group = null) {
   try {
-    workflow = updateStep(workflow, index, patch);
-    markEdited();
-    if (rerender) renderSteps();
+    commitWorkflow(updateStep(workflow, index, patch), group);
+    if (rerender) renderSteps(index);
   } catch { notice('Step edit rejected by validation.', true); }
 }
 
@@ -94,7 +114,7 @@ function selectOptions(items, value, onChange) {
   return sel;
 }
 
-function renderSteps() {
+function renderSteps(focusIndex = null) {
   const list = $('step-list');
   list.replaceChildren();
   $('step-count').textContent = `(${workflow.steps.length})`;
@@ -103,6 +123,7 @@ function renderSteps() {
   workflow.steps.forEach((step, index) => {
     const item = document.createElement('li');
     item.className = 'step';
+    item.tabIndex = -1;
     const header = document.createElement('div');
     header.className = 'step-title';
     const indexSpan = document.createElement('span');
@@ -123,9 +144,8 @@ function renderSteps() {
       button.disabled = disabled;
       button.addEventListener('click', () => {
         if (invalidJsonFields.size) { notice('Fix invalid JSON before moving or deleting steps.', true); return; }
-        workflow = handler();
-        markEdited();
-        renderSteps();
+        commitWorkflow(handler());
+        renderSteps(Math.min(index + (label === 'Move step down' ? 1 : label === 'Move step up' ? -1 : 0), workflow.steps.length - 1));
       });
       tools.append(button);
     }
@@ -133,7 +153,7 @@ function renderSteps() {
     const fields = document.createElement('div');
     fields.className = 'step-fields';
     fields.append(
-      labelWith('Step ID', inputText(step.id, value => updateAt(index, { id: value }), { maxLength: 128 })),
+      labelWith('Step ID', inputText(step.id, value => updateAt(index, { id: value }, false, `step:${index}:id`), { maxLength: 128 })), 
       labelWith('Action', selectOptions(availableActions, step.action, value => updateAt(index, { action: value }))),
     );
     const inputArea = document.createElement('textarea');
@@ -145,7 +165,7 @@ function renderSteps() {
       try {
         const value = JSON.parse(inputArea.value);
         invalidJsonFields.delete(`input:${index}`);
-        updateAt(index, { input: value });
+        updateAt(index, { input: value }, false, `step:${index}:input`);
       } catch {
         invalidJsonFields.add(`input:${index}`);
         $('export-workflow').disabled = true;
@@ -203,6 +223,7 @@ function renderSteps() {
     }
     list.append(item);
   });
+  if (Number.isInteger(focusIndex)) list.children[focusIndex]?.focus();
 }
 
 function showPreview(report) {
@@ -255,25 +276,39 @@ async function init() {
     catalog = {};
     notice('Action catalog is unavailable; preview cannot validate action metadata.', true);
   }
-  $('workflow-name').addEventListener('input', e => edit({ name: e.target.value }));
-  $('workflow-id').addEventListener('input', e => edit({ id: e.target.value }));
+  $('workflow-name').addEventListener('input', e => edit({ name: e.target.value }, 'workflow:name'));
+  $('workflow-id').addEventListener('input', e => edit({ id: e.target.value }, 'workflow:id'));
   $('workflow-enabled').addEventListener('change', e => edit({ enabled: e.target.checked }));
   $('trigger-type').addEventListener('change', e => {
-    workflow = setTriggerType(workflow, e.target.value);
-    markEdited();
+    commitWorkflow(setTriggerType(workflow, e.target.value));
     render();
   });
-  $('event-name').addEventListener('input', e => edit({ triggers: [{ type: 'event', name: e.target.value }] }));
-  $('interval-minutes').addEventListener('input', e => edit({ triggers: [{ ...workflow.triggers[0], everyMs: Number(e.target.value) * 60000 }] }));
-  $('interval-anchor').addEventListener('input', e => edit({ triggers: [{ ...workflow.triggers[0], anchorAt: e.target.value }] }));
+  $('event-name').addEventListener('input', e => edit({ triggers: [{ type: 'event', name: e.target.value }] }, 'trigger:event'));
+  $('interval-minutes').addEventListener('input', e => edit({ triggers: [{ ...workflow.triggers[0], everyMs: Number(e.target.value) * 60000 }] }, 'trigger:minutes'));
+  $('interval-anchor').addEventListener('input', e => edit({ triggers: [{ ...workflow.triggers[0], anchorAt: e.target.value }] }, 'trigger:anchor'));
   $('add-step').addEventListener('click', () => {
     if (invalidJsonFields.size) { notice('Fix invalid JSON before adding or reordering steps.', true); return; }
-    try { workflow = appendStep(workflow, Object.keys(catalog)[0] ?? 'local.note'); markEdited(); renderSteps(); }
+    try { commitWorkflow(appendStep(workflow, Object.keys(catalog)[0] ?? 'local.note')); renderSteps(workflow.steps.length - 1); }
     catch { notice('Step limit reached.', true); }
+  });
+  $('undo-workflow').addEventListener('click', () => restoreHistory('undo'));
+  $('redo-workflow').addEventListener('click', () => restoreHistory('redo'));
+  document.addEventListener('keydown', event => {
+    if ((!event.ctrlKey && !event.metaKey) || event.altKey) return;
+    const target = event.target;
+    // Preserve native text-field undo, including IME composition.
+    if (event.isComposing || target?.closest?.('input, textarea, select, [contenteditable]')) return;
+    const key = event.key.toLowerCase();
+    if (key === 'z' || key === 'y') {
+      const redo = key === 'y' || event.shiftKey;
+      event.preventDefault();
+      restoreHistory(redo ? 'redo' : 'undo');
+    }
   });
   $('new-workflow').addEventListener('click', () => {
     if (unsaved && !window.confirm('Discard this unexported definition?')) return;
-    workflow = createDraft();
+    history = createHistory(createDraft());
+    workflow = history.present;
     unsaved = false;
     invalidJsonFields.clear();
     $('preview-output').replaceChildren();
@@ -287,7 +322,8 @@ async function init() {
     if (file.size > MAX_FILE_BYTES) { notice('Workflow JSON exceeds 256 KiB.', true); return; }
     if (unsaved && !window.confirm('Replace this unexported definition?')) return;
     try {
-      workflow = importDraft(await file.text(), catalog);
+      history = createHistory(importDraft(await file.text(), catalog));
+      workflow = history.present;
       unsaved = false;
       invalidJsonFields.clear();
       $('preview-output').replaceChildren();
