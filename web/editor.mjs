@@ -153,7 +153,7 @@ function renderSteps(focusIndex = null) {
     const fields = document.createElement('div');
     fields.className = 'step-fields';
     fields.append(
-      labelWith('Step ID', inputText(step.id, value => updateAt(index, { id: value }, false, `step:${index}:id`), { maxLength: 128 })), 
+      labelWith('Step ID', inputText(step.id, value => updateAt(index, { id: value }, false, `step:${index}:id`), { maxLength: 128 })),
       labelWith('Action', selectOptions(availableActions, step.action, value => updateAt(index, { action: value }))),
     );
     const inputArea = document.createElement('textarea');
