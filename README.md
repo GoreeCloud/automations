@@ -14,8 +14,8 @@ The proposed authority is *what work should run, where, when, with which approve
 - Resume from the paused step and prevent duplicate event execution in one worker, with atomic-store support for cross-worker event deduplication.
 - Explicit authorization on **every step** and default-deny behavior; unavailable actions are blocked.
 - Distinct succeeded, failed, blocked, skipped, waiting-network state; sanitized operational transition events.
-- Memory-only test/example storage; portable storage interface for future encrypted durable device storage.
-- Seven automated Node tests passing locally at authoring time; GitHub CI and actual device behavior require independent verification.
+- Node development encrypted-file persistence (AES-256-GCM, single-writer lock, atomic snapshot replacement); future native runtimes still require OS-protected key management, transactional storage and device acceptance.
+- Thirteen automated Node tests passing locally at the October 11 development cycle; exact-head GitHub CI and actual device behavior require independent verification.
 
 **This is not a usable native mobile/TV app, a workflow designer, a network scheduler, or a persisted offline background-service implementation yet.** Registration and action implementations are injected by host applications. No external HTTP service, AI provider, OS automation, privileged device control, or cloud account is enabled by this core.
 
@@ -31,7 +31,8 @@ A host registers a permitted action and explicitly wires the authorization adapt
 
 ```js
 import { WorkflowEngine } from './src/engine.mjs';
-import workflow from './examples/offline-morning.json' with { type: 'json' };
+import { readFile } from 'node:fs/promises';
+const workflow = JSON.parse(await readFile('./examples/offline-morning.json', 'utf8'));
 
 const engine = new WorkflowEngine({
   online: () => false,
@@ -51,6 +52,6 @@ console.log(job.status); // blocked until remote.send is registered, or skipped 
 
 ### Operational contract
 
-Treat workflow and trigger JSON as untrusted input. Production adapters MUST enforce authoritative GoreeCloud Identity, Privacy Shield, Wardveil Security, and GoreeCloud Policy decisions, and MUST never use permissive placeholder authorization. Host actions must enforce scoped permissions at the actual resource boundary and deduplicate stable idempotency keys. Do not record secrets in workflow definitions. Event sources must generate stable IDs. Production storage must be encrypted, durable, atomic, and backed up according to Everkeep policy.
+Treat workflow and trigger JSON as untrusted input. Production adapters MUST enforce authoritative GoreeCloud Identity, Privacy Shield, Wardveil Security, and GoreeCloud Policy decisions, and MUST never use permissive placeholder authorization. Host actions must enforce scoped permissions at the actual resource boundary and deduplicate stable idempotency keys. Do not record secrets in workflow definitions. Event sources must generate stable IDs. For this Node development slice, `EncryptedFileStore.open({directory, key})` requires a 32-byte key supplied by an authorized host secret manager and a private directory. It holds an exclusive single-node writer lock and encrypts state using AES-256-GCM; it is not qualified as production storage. A stale writer lock must be investigated before controlled recovery and must never be automatically deleted. Recovery blocks uncertain non-idempotent side effects with `ACTION_OUTCOME_UNKNOWN`; an action must declare `replaySafe: true` only if its real target durably deduplicates the stable key. Future native storage must be encrypted, transactional, device-managed, and backed up according to Everkeep policy.
 
 See [Architecture](docs/architecture.md) and [Product roadmap](docs/roadmap.md).

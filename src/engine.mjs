@@ -89,12 +89,12 @@ export class WorkflowEngine {
     return value.id;
   }
 
-  registerAction(name, { execute, requiresNetwork = false, capability } = {}) {
+  registerAction(name, { execute, requiresNetwork = false, capability, replaySafe = false } = {}) {
     if (!safeId.test(name || '') || typeof execute !== 'function' ||
-        !safeId.test(capability || '') || typeof requiresNetwork !== 'boolean') {
+        !safeId.test(capability || '') || typeof requiresNetwork !== 'boolean' || typeof replaySafe !== 'boolean') {
       throw new TypeError('Action needs a name, capability, and execute function');
     }
-    this.#actions.set(name, { execute, requiresNetwork, capability });
+    this.#actions.set(name, { execute, requiresNetwork, capability, replaySafe });
   }
 
   async emit(eventName, eventId, payload = {}, actor = null) {
@@ -114,7 +114,8 @@ export class WorkflowEngine {
       const existing = await this.store.get(id);
       if (existing) return existing;
       const job = { id, workflowId, eventId, payload: copy(payload), actor: copy(actor),
-        cursor: 0, status: 'running', stepHistory: [], createdAt: this.now(), updatedAt: this.now() };
+        cursor: 0, status: 'running', stepHistory: [], workflowSnapshot: copy(workflow),
+        createdAt: this.now(), updatedAt: this.now() };
       const created = await this.store.createIfAbsent(job);
       if (!created) return this.store.get(id);
       return this.#execute(job, workflow);
@@ -130,12 +131,36 @@ export class WorkflowEngine {
       if (!job) throw new Error('Unknown job');
       if (job.status !== 'waiting_network') return job;
       const workflow = this.#workflows.get(job.workflowId);
-      if (!workflow || !workflow.enabled) return this.#set(job, 'blocked', 'WORKFLOW_UNAVAILABLE');
-      return this.#execute(job, workflow);
+      if (!workflow || !workflow.enabled || !job.workflowSnapshot) return this.#set(job, 'blocked', 'WORKFLOW_UNAVAILABLE');
+      return this.#execute(job, job.workflowSnapshot);
     });
   }
 
   async pending() { return (await this.store.list()).filter(j => j.status === 'waiting_network'); }
+
+  /**
+   * Inspect interruption survivors. Never blindly replay a side-effecting
+   * action: the host may have completed it before the process crashed.
+   */
+  async interrupted() { return (await this.store.list()).filter(j => j.status === 'running'); }
+
+  async recover(jobId) {
+    return this.#singleFlight(jobId, async () => {
+      const job = await this.store.get(jobId);
+      if (!job) throw new Error('Unknown job');
+      if (job.status !== 'running') return job;
+      const workflow = this.#workflows.get(job.workflowId);
+      if (!workflow || !workflow.enabled || !job.workflowSnapshot) return this.#set(job, 'blocked', 'WORKFLOW_UNAVAILABLE');
+      if (job.inflightStepId) {
+        const step = job.workflowSnapshot.steps[job.cursor];
+        const action = step && this.#actions.get(step.action);
+        if (!step || step.id !== job.inflightStepId || action?.replaySafe !== true) {
+          return this.#set(job, 'blocked', 'ACTION_OUTCOME_UNKNOWN');
+        }
+      }
+      return this.#execute(job, job.workflowSnapshot);
+    });
+  }
 
   async #singleFlight(id, fn) {
     if (this.#flights.has(id)) return this.#flights.get(id);
@@ -173,6 +198,10 @@ export class WorkflowEngine {
       } catch { permitted = false; }
       if (permitted !== true) return this.#set(job, 'blocked', 'AUTHORIZATION_DENIED');
       if (action.requiresNetwork && !this.online()) return this.#set(job, 'waiting_network');
+      // Durable checkpoint before external effects. Once set, an interrupted
+      // action is never replayed unless the host declares replaySafe.
+      job.inflightStepId = step.id;
+      await this.#set(job, 'running');
       try {
         await action.execute({ input: copy(step.input ?? null), payload: copy(job.payload),
           actor: copy(job.actor), idempotencyKey: job.id + ':' + step.id });
@@ -182,6 +211,7 @@ export class WorkflowEngine {
       }
       job.stepHistory.push({ stepId: step.id, status: 'succeeded' });
       job.cursor++;
+      delete job.inflightStepId;
       await this.#set(job, 'running');
     }
     return this.#set(job, 'succeeded');

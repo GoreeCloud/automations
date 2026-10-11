@@ -5,7 +5,7 @@
 | Phase | Priority | Outcome / verifiable acceptance |
 |---|---|---|
 | 0. Governance + scope | P0 | Reconcile ten-system proposal with authoritative Instructions/Decision/architecture through controlled revision, platform boundary review, threat model, retained task register, and repository index confirmation. Repo is already `GoreeCloud/automations`, not a new repo. |
-| 1. Reliable local MVP | P0 | Durable encrypted on-device event/run journal; local event/manual/interval triggers; safe local actions and conditionals; cancellation, workflow enable/disable, reauthorization, failure explanation, idempotency, power-loss recovery, unit and integration tests. **In progress:** portable in-memory engine + tests. |
+| 1. Reliable local MVP | P0 | Durable encrypted on-device event/run journal; local event/manual/interval triggers; safe local actions and conditionals; cancellation, workflow enable/disable, reauthorization, failure explanation, idempotency, power-loss recovery, unit and integration tests. **In progress:** portable engine, encrypted single-node Node snapshot store, crash-aware step checkpoints and recovery tests; native and production-grade storage remain pending. |
 | 2. Builder + integration | P0/P1 | Glaze quick editor + linear/graph builder, device capability picker, simulation/test mode; capability registry, first-party Notes/Tasks/Mail/Memos/Notify/Mesh adapters; onboarding; screen-reader and TV input acceptance. |
 | 3. Cross-device + offline sync | P1 | Device identity, secure pairing, opt-in execution placement, workflow definition syncing through GoreeCloud Sync, signed event envelopes, conflict resolution and duplicate-suppression across devices. |
 | 4. Server orchestrator | P1 | Self-hosted worker pool, durable schedules/queues, webhook ingress with anti-replay, retry/dead-letter handling, queue metrics, approval gates and rollback/recovery drills. |
@@ -20,9 +20,10 @@
 - [x] Offline local step + deferred network action with resume.
 - [x] Stable run keys with within-worker duplicate prevention and atomic-store contract.
 - [x] Explicit success/failed/blocked/waiting status, sanitized transition hook.
-- [x] Local test suite (7 passing at authoring time).
+- [x] Local test suite (13 passing as of October 11 development cycle).
 - [ ] Authoritative GitHub CI validation on the exact candidate branch.
-- [ ] Persistent encrypted storage and interruption/restart tests.
+- [x] Development-only encrypted Node snapshot storage with restart and integrity tests; interrupted unsafe side effects fail closed.
+- [ ] Production-grade transactional storage, OS-protected keys, recovery drills, power-loss tests and native device qualification.
 - [ ] Native mobile, desktop, browser, TV execution and UX acceptance.
 - [ ] Core platform contracts, real adapters and production permissions.
 - [ ] Governance adoption of the tenth system and dependent index amendments.
