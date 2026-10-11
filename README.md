@@ -69,3 +69,5 @@ See [Architecture](docs/architecture.md), [Preview contract](docs/preview.md), [
 Run `npm run editor` with Node 20+ and open `http://127.0.0.1:4173/` on the same computer. This **local-only** responsive authoring UI supports event/interval triggers, reorderable steps, conditions, bounded retries, explicit JSON import/export, and side-effect-free previews. It never executes host actions, connects accounts, or grants permissions. New workflows are disabled by default. No external dependencies are required.
 
 The UI is a **Glaze V1.7-aligned consumer design candidate**, **not** a certified Glaze adoption and **not** a native app. It does not vendor the canonical Glaze runtime; repository-local 1.7.0 integration and acceptance are outstanding. See `docs/editor.md` for controls, security boundaries and evidence.
+
+Workflow Studio supports 32-level in-memory undo/redo, grouped typing edits and focus recovery after structural changes.
