@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import {
   createDraft, validateDraft, importDraft, exportDraft, appendStep,
   removeStep, moveStep, updateStep, setTriggerType, workflowIssues,
+  createHistory, recordHistory, undoHistory, redoHistory,
 } from '../web/editor-state.mjs';
 import { makeEditorServer } from '../bin/serve-editor.mjs';
 
@@ -117,10 +118,50 @@ test('loopback editor serves only allowed local assets and denies mutation and p
 test('editor has labeled inputs, live status, and user-initiated import/export and preview controls', async () => {
   const html = await readFile(new URL('../web/index.html', import.meta.url), 'utf8');
   for (const id of ['workflow-name','workflow-id','workflow-enabled','trigger-type','step-list',
-    'preview-payload','preview-button','status','import-workflow','export-workflow']) {
+    'preview-payload','preview-button','status','import-workflow','export-workflow',
+    'undo-workflow','redo-workflow']) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
   assert.match(html, /aria-live="polite"/);
   assert.match(html, /Skip to workflow editor/);
   assert.doesNotMatch(html, /https?:\/\//); // No remote dependencies at runtime
+});
+
+
+test('editor undo and redo reverses structural changes without mutating original snapshots', () => {
+  const start = createDraft();
+  const h0 = createHistory(start);
+  const h1 = recordHistory(h0, appendStep(start, 'remote.send'));
+  const h2 = recordHistory(h1, moveStep(h1.present, 1, -1));
+  assert.equal(h0.present.steps.length, 1);
+  assert.deepEqual(h2.present.steps.map(x => x.action), ['remote.send', 'local.note']);
+  const once = undoHistory(h2);
+  const twice = undoHistory(once);
+  assert.deepEqual(twice.present, start);
+  assert.deepEqual(redoHistory(redoHistory(twice)).present, h2.present);
+});
+
+test('editor coalesces contiguous field typing; new edits invalidate redo', () => {
+  let h = createHistory(createDraft());
+  h = recordHistory(h, { ...h.present, name: 'W' }, 'workflow:name');
+  h = recordHistory(h, { ...h.present, name: 'Wo' }, 'workflow:name');
+  h = recordHistory(h, { ...h.present, name: 'Work' }, 'workflow:name');
+  assert.equal(h.past.length, 1);
+  h = undoHistory(h);
+  assert.equal(h.present.name, 'Untitled workflow');
+  assert.equal(h.future.length, 1);
+  h = recordHistory(h, { ...h.present, name: 'Other' }, 'workflow:name');
+  assert.equal(h.future.length, 0);
+  assert.equal(redoHistory(h).present.name, 'Other');
+});
+
+test('editor bounds history, rejects invalid bounds and leaves workflow immutable', () => {
+  assert.throws(() => createHistory(createDraft(), 0), RangeError);
+  assert.throws(() => createHistory(createDraft(), 129), RangeError);
+  let h = createHistory(createDraft(), 3);
+  for (let i = 0; i < 10; i++) h = recordHistory(h, { ...h.present, name: `edit-${i}` });
+  assert.equal(h.past.length, 3);
+  assert.equal(h.present.name, 'edit-9');
+  assert.equal(undoHistory(undoHistory(undoHistory(h))).present.name, 'edit-6');
+  assert.equal(undoHistory(undoHistory(undoHistory(undoHistory(h)))).present.name, 'edit-6');
 });
