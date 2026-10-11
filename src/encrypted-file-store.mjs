@@ -13,11 +13,13 @@ const formatVersion = 1;
 const filename = 'jobs.enc';
 const markerName = '.initialized';
 const jobIdPattern = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}:[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/;
-const allowedStatuses = new Set(['running', 'waiting_network', 'succeeded', 'blocked', 'failed', 'cancelled']);
+const allowedStatuses = new Set(['running', 'waiting_network', 'waiting_retry', 'succeeded', 'blocked', 'failed', 'cancelled']);
 function assertJob(job) {
   if (!job || typeof job !== 'object' || Array.isArray(job) ||
       !jobIdPattern.test(job.id || '') || !allowedStatuses.has(job.status) ||
-      !Number.isSafeInteger(job.cursor) || job.cursor < 0) {
+      !Number.isSafeInteger(job.cursor) || job.cursor < 0 ||
+      (job.attempt !== undefined && (!Number.isSafeInteger(job.attempt) || job.attempt < 1 || job.attempt > 6)) ||
+      (job.status === 'waiting_retry' && (typeof job.retryAt !== 'string' || !Number.isFinite(Date.parse(job.retryAt))))) {
     throw new TypeError('Invalid job state');
   }
 }
@@ -120,8 +122,8 @@ export class EncryptedFileStore {
       if (!data || data.version !== formatVersion || !data.jobs ||
           Object.getPrototypeOf(data.jobs) !== Object.prototype || Array.isArray(data.jobs)) throw new Error('Invalid state');
       for (const [id, job] of Object.entries(data.jobs)) {
-        if (id !== job?.id || !jobIdPattern.test(id) || !allowedStatuses.has(job.status) ||
-            !Number.isSafeInteger(job.cursor) || job.cursor < 0) throw new Error('Invalid job');
+        if (id !== job?.id) throw new Error('Invalid job');
+        assertJob(job);
       }
       return data.jobs;
     } catch { throw new StoreIntegrityError(); }
