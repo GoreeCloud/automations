@@ -16,7 +16,7 @@
   </header>
   <main class="shell">
     <div class="intro"><div><p class="eyebrow">Offline-first authoring</p><h1>Build a workflow</h1><p>Arrange steps, inspect permissions and network needs, then export a portable definition. Preview cannot execute actions.</p></div>
-      <div class="actions"><button id="new-workflow" type="button" class="secondary">New</button><button id="import-workflow" type="button" class="secondary">Import JSON</button><button id="export-workflow" type="button" class="primary">Export JSON</button><input type="file" accept="application/json,.json" id="workflow-file" hidden></div></div>
+      <div class="actions"><button id="undo-workflow" type="button" class="secondary" disabled aria-keyshortcuts="Control+Z Meta+Z">↶ Undo</button><button id="redo-workflow" type="button" class="secondary" disabled aria-keyshortcuts="Control+Y Control+Shift+Z Meta+Shift+Z">↷ Redo</button><button id="new-workflow" type="button" class="secondary">New</button><button id="import-workflow" type="button" class="secondary">Import JSON</button><button id="export-workflow" type="button" class="primary">Export JSON</button><input type="file" accept="application/json,.json" id="workflow-file" hidden></div></div>
     <div class="workspace">
       <section class="panel editor-panel" aria-labelledby="workflow-heading" id="editor">
         <div class="section-header"><div><p class="eyebrow">1 · Define</p><h2 id="workflow-heading">Workflow details</h2></div><label class="toggle"><input type="checkbox" id="workflow-enabled"><span>Enabled in exported definition</span></label></div>
