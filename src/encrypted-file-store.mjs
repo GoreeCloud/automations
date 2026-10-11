@@ -11,8 +11,9 @@ const copy = value => JSON.parse(JSON.stringify(value));
 const initToken = Symbol('private-construction');
 const formatVersion = 1;
 const filename = 'jobs.enc';
+const markerName = '.initialized';
 const jobIdPattern = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}:[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/;
-const allowedStatuses = new Set(['running', 'waiting_network', 'succeeded', 'blocked', 'failed']);
+const allowedStatuses = new Set(['running', 'waiting_network', 'succeeded', 'blocked', 'failed', 'cancelled']);
 function assertJob(job) {
   if (!job || typeof job !== 'object' || Array.isArray(job) ||
       !jobIdPattern.test(job.id || '') || !allowedStatuses.has(job.status) ||
@@ -63,7 +64,7 @@ export class EncryptedFileStore {
       store.#lockHandle = handle;
       // Integrity and key correctness are verified at open. Never overwrite
       // malformed data with an empty state.
-      await store.#load();
+      await store.#initialize();
       return store;
     } catch (error) {
       await handle.close();
@@ -74,11 +75,39 @@ export class EncryptedFileStore {
 
   #assertOpen() { if (this.#closed) throw new Error('STORE_CLOSED'); }
 
+  async #initialize() {
+    // Legacy stores may have jobs.enc without a marker. Upgrade non-destructively.
+    // A marker without a journal proves that a previously initialized journal
+    // disappeared; silently treating it as a new store risks lost/duplicate work.
+    const marker = join(this.#directory, markerName);
+    let marked = false;
+    try {
+      const data = await readFile(marker);
+      if (data.toString() !== 'GCA1\n') throw new StoreIntegrityError();
+      marked = true;
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    let present = true;
+    try { await lstat(join(this.#directory, filename)); }
+    catch (error) { if (error.code === 'ENOENT') present = false; else throw error; }
+    if (!present && marked) throw new StoreIntegrityError();
+    if (!present) await this.#save({});
+    await this.#load(); // Authenticate existing state before writing a marker.
+    if (!marked) {
+      const handle = await open(marker, 'wx', 0o600);
+      try { await handle.writeFile('GCA1\n'); await handle.sync(); }
+      finally { await handle.close(); }
+      const folder = await open(this.#directory, 'r');
+      try { await folder.sync(); } finally { await folder.close(); }
+    }
+  }
+
   async #load() {
     this.#assertOpen();
     let raw;
     try { raw = await readFile(join(this.#directory, filename)); }
-    catch (error) { if (error.code === 'ENOENT') return {}; throw error; }
+    catch (error) { if (error.code === 'ENOENT') throw new StoreIntegrityError(); throw error; }
     try {
       if (raw.length < 4 + 12 + 16 || raw.subarray(0, 4).toString() !== 'GCA1') throw new Error('Invalid header');
       const iv = raw.subarray(4, 16);
