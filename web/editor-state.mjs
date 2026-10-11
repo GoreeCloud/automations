@@ -6,7 +6,6 @@ const safeId = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/;
 const MAX_BYTES = 256 * 1024;
 const MAX_STEPS = 128;
 
-
 /** In-memory undo history. Never persists workflow data or invokes actions. */
 export function createHistory(initial, limit = 32) {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 128) throw new RangeError('Invalid undo limit');
