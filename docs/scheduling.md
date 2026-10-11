@@ -16,7 +16,7 @@ The host invokes `await engine.tick(new Date().toISOString())` when an OS-permit
 
 ## Deferred network operations
 
-`pending()` lists `waiting_network` jobs. A host can call `resumePending()` after an authenticated network-status change, and can cancel an individual queued job with `cancel(jobId)`. Cancellation applies **only to jobs waiting for network**. It does not roll back local actions that already finished or interrupt side-effecting actions currently executing. Resumption always rechecks registered workflow availability, current authorization, and current network state. Jobs that were cancelled remain terminal and are not resumed.
+`pending()` lists `waiting_network` jobs. Separately, `dueRetries(at)` lists `waiting_retry` jobs whose deadline has arrived; `resumeDue(at)` processes these only after a host-permitted wakeup. Retry scheduling does not grant OS background privileges; see [Retry contract](retries.md). A host can call `resumePending()` after an authenticated network-status change, and can cancel an individual queued job with `cancel(jobId)`. Cancellation applies **only to queued network or retry jobs**. It does not roll back local actions that already finished or interrupt side-effecting actions currently executing. Resumption always rechecks registered workflow availability, current authorization, and current network state. Jobs that were cancelled remain terminal and are not resumed.
 
 ## Illustrative host invocation
 
