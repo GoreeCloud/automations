@@ -9,7 +9,7 @@ const MAX_INPUT_CHARS = 8192;
 let workflow = createDraft();
 let catalog = {};
 let unsaved = false;
-let editingError = false;
+const invalidJsonFields = new Set();
 
 function notice(message, error = false) {
   $('status').textContent = message;
@@ -23,7 +23,7 @@ function markEdited() {
 
 function renderStatus() {
   const { error } = workflowIssues(workflow, catalog, {}, false);
-  const invalid = Boolean(error || editingError);
+  const invalid = Boolean(error || invalidJsonFields.size);
   $('export-workflow').disabled = invalid;
   if (invalid) notice('Invalid definition. Fix the highlighted field or check workflow identifiers and step settings.', true);
   else notice(unsaved ? 'Unsaved definition. Export JSON to keep your changes. No actions have run.' : 'Ready. No actions have run.');
@@ -31,7 +31,6 @@ function renderStatus() {
 
 function edit(patch) {
   workflow = { ...workflow, ...patch };
-  editingError = false;
   markEdited();
 }
 
@@ -58,7 +57,6 @@ function inputText(value, onChange, { type = 'text', maxLength, min, max, step }
 function updateAt(index, patch, rerender = false) {
   try {
     workflow = updateStep(workflow, index, patch);
-    editingError = false;
     markEdited();
     if (rerender) renderSteps();
   } catch { notice('Step edit rejected by validation.', true); }
@@ -124,6 +122,7 @@ function renderSteps() {
       button.setAttribute('aria-label', `${label} ${index + 1}`);
       button.disabled = disabled;
       button.addEventListener('click', () => {
+        if (invalidJsonFields.size) { notice('Fix invalid JSON before moving or deleting steps.', true); return; }
         workflow = handler();
         markEdited();
         renderSteps();
@@ -144,9 +143,11 @@ function renderSteps() {
     inputArea.value = JSON.stringify(step.input ?? {}, null, 2);
     inputArea.addEventListener('input', () => {
       try {
-        updateAt(index, { input: JSON.parse(inputArea.value) });
+        const value = JSON.parse(inputArea.value);
+        invalidJsonFields.delete(`input:${index}`);
+        updateAt(index, { input: value });
       } catch {
-        editingError = true;
+        invalidJsonFields.add(`input:${index}`);
         $('export-workflow').disabled = true;
         notice(`Step ${index + 1}: action input is not valid JSON.`, true);
       }
@@ -176,8 +177,11 @@ function renderSteps() {
       );
       if (step.when.op !== 'exists') {
         const valueInput = inputText(JSON.stringify(step.when.value ?? null), raw => {
-          try { updateAt(index, { when: { ...workflow.steps[index].when, value: JSON.parse(raw) } }); }
-          catch { editingError = true; $('export-workflow').disabled = true; notice('Condition comparison must be valid JSON.', true); }
+          try {
+            const value = JSON.parse(raw);
+            invalidJsonFields.delete(`when:${index}`);
+            updateAt(index, { when: { ...workflow.steps[index].when, value } });
+          } catch { invalidJsonFields.add(`when:${index}`); $('export-workflow').disabled = true; notice('Condition comparison must be valid JSON.', true); }
         });
         condition.append(labelWith('Comparison value (JSON)', valueInput, 'wide'));
       }
@@ -263,6 +267,7 @@ async function init() {
   $('interval-minutes').addEventListener('input', e => edit({ triggers: [{ ...workflow.triggers[0], everyMs: Number(e.target.value) * 60000 }] }));
   $('interval-anchor').addEventListener('input', e => edit({ triggers: [{ ...workflow.triggers[0], anchorAt: e.target.value }] }));
   $('add-step').addEventListener('click', () => {
+    if (invalidJsonFields.size) { notice('Fix invalid JSON before adding or reordering steps.', true); return; }
     try { workflow = appendStep(workflow, Object.keys(catalog)[0] ?? 'local.note'); markEdited(); renderSteps(); }
     catch { notice('Step limit reached.', true); }
   });
@@ -270,7 +275,7 @@ async function init() {
     if (unsaved && !window.confirm('Discard this unexported definition?')) return;
     workflow = createDraft();
     unsaved = false;
-    editingError = false;
+    invalidJsonFields.clear();
     $('preview-output').replaceChildren();
     render();
   });
@@ -284,14 +289,14 @@ async function init() {
     try {
       workflow = importDraft(await file.text(), catalog);
       unsaved = false;
-      editingError = false;
+      invalidJsonFields.clear();
       $('preview-output').replaceChildren();
       render();
       notice('Workflow imported and validated. No actions have run.');
     } catch { notice('Workflow import failed validation. Existing definition was preserved.', true); }
   });
   $('export-workflow').addEventListener('click', () => {
-    if (editingError) { notice('Resolve the invalid JSON field before exporting.', true); return; }
+    if (invalidJsonFields.size) { notice('Resolve invalid JSON fields before exporting.', true); return; }
     try {
       const blob = new Blob([exportDraft(workflow, catalog)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -310,7 +315,7 @@ async function init() {
       payload = JSON.parse($('preview-payload').value);
       if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Object needed');
     } catch { notice('Preview payload must be a JSON object.', true); $('preview-output').replaceChildren(); return; }
-    if (editingError) { notice('Fix invalid step JSON before preview.', true); return; }
+    if (invalidJsonFields.size) { notice('Fix invalid step JSON before preview.', true); return; }
     const { report, error } = workflowIssues(workflow, catalog, payload, $('preview-online').checked);
     if (error) { notice(error, true); $('preview-output').replaceChildren(); return; }
     showPreview(report);
