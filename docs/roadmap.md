@@ -15,14 +15,14 @@
 
 ## Current development slice acceptance
 
-- [x] Versioned event-triggered workflow parser and validation.
+- [x] Versioned named-event/UTC interval-triggered workflow parser and validation (host-driven latest-only ticks, not OS-native scheduled wakeups).
 - [x] Registered action adapter execution, deny-by-default authorization.
-- [x] Offline local step + deferred network action with resume.
+- [x] Offline local step + deferred network action with resume, bulk resume and queued-job cancellation.
 - [x] Stable run keys with within-worker duplicate prevention and atomic-store contract.
 - [x] Explicit success/failed/blocked/waiting status, sanitized transition hook.
-- [x] Local test suite (14 passing as of October 11 development cycle).
+- [x] Local test suite (20 passing as of October 11 development cycle).
 - [ ] Authoritative GitHub CI validation on the exact candidate branch.
-- [x] Development-only encrypted Node snapshot storage with restart and integrity tests; interrupted unsafe side effects fail closed.
+- [x] Development-only encrypted Node snapshot storage with restart, integrity and missing-journal tests; interrupted unsafe side effects fail closed.
 - [ ] Production-grade transactional storage, OS-protected keys, recovery drills, power-loss tests and native device qualification.
 - [ ] Native mobile, desktop, browser, TV execution and UX acceptance.
 - [ ] Core platform contracts, real adapters and production permissions.
