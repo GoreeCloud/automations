@@ -15,7 +15,7 @@ The proposed authority is *what work should run, where, when, with which approve
 - Explicit authorization on **every step** and default-deny behavior; unavailable actions are blocked.
 - Distinct succeeded, failed, blocked, skipped, waiting-network state; sanitized operational transition events.
 - Node development encrypted-file persistence (AES-256-GCM, single-writer lock, atomic snapshot replacement); future native runtimes still require OS-protected key management, transactional storage and device acceptance.
-- Thirteen automated Node tests passing locally at the October 11 development cycle; exact-head GitHub CI and actual device behavior require independent verification.
+- Fourteen automated Node tests passing locally at the October 11 development cycle; exact-head GitHub CI and actual device behavior require independent verification.
 
 **This is not a usable native mobile/TV app, a workflow designer, a network scheduler, or a persisted offline background-service implementation yet.** Registration and action implementations are injected by host applications. No external HTTP service, AI provider, OS automation, privileged device control, or cloud account is enabled by this core.
 

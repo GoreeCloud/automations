@@ -20,7 +20,7 @@
 - [x] Offline local step + deferred network action with resume.
 - [x] Stable run keys with within-worker duplicate prevention and atomic-store contract.
 - [x] Explicit success/failed/blocked/waiting status, sanitized transition hook.
-- [x] Local test suite (13 passing as of October 11 development cycle).
+- [x] Local test suite (14 passing as of October 11 development cycle).
 - [ ] Authoritative GitHub CI validation on the exact candidate branch.
 - [x] Development-only encrypted Node snapshot storage with restart and integrity tests; interrupted unsafe side effects fail closed.
 - [ ] Production-grade transactional storage, OS-protected keys, recovery drills, power-loss tests and native device qualification.

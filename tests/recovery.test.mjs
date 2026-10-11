@@ -125,3 +125,16 @@ test('store fails closed without 32-byte caller-supplied key', async () => {
     await assert.rejects(() => EncryptedFileStore.open({ directory, key: Buffer.alloc(16) }), TypeError);
   });
 });
+
+
+test('invalid host job states cannot poison an encrypted store', async () => {
+  await withDirectory(async directory => {
+    const key = randomBytes(32);
+    const store = await EncryptedFileStore.open({ directory, key });
+    await assert.rejects(() => store.createIfAbsent({ id: '__proto__', status: 'running', cursor: 0 }), TypeError);
+    await assert.rejects(() => store.createIfAbsent({ id: 'job:valid', status: 'not-a-status', cursor: 0 }), TypeError);
+    await assert.rejects(() => store.createIfAbsent({ id: 'job:valid', status: 'running', cursor: -1 }), TypeError);
+    assert.deepEqual(await store.list(), []);
+    await store.close();
+  });
+});

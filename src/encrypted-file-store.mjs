@@ -11,6 +11,16 @@ const copy = value => JSON.parse(JSON.stringify(value));
 const initToken = Symbol('private-construction');
 const formatVersion = 1;
 const filename = 'jobs.enc';
+const jobIdPattern = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}:[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/;
+const allowedStatuses = new Set(['running', 'waiting_network', 'succeeded', 'blocked', 'failed']);
+function assertJob(job) {
+  if (!job || typeof job !== 'object' || Array.isArray(job) ||
+      !jobIdPattern.test(job.id || '') || !allowedStatuses.has(job.status) ||
+      !Number.isSafeInteger(job.cursor) || job.cursor < 0) {
+    throw new TypeError('Invalid job state');
+  }
+}
+
 
 export class StoreIntegrityError extends Error {
   constructor() { super('Encrypted automation state is unavailable or failed integrity verification'); this.name = 'StoreIntegrityError'; }
@@ -81,7 +91,8 @@ export class EncryptedFileStore {
       if (!data || data.version !== formatVersion || !data.jobs ||
           Object.getPrototypeOf(data.jobs) !== Object.prototype || Array.isArray(data.jobs)) throw new Error('Invalid state');
       for (const [id, job] of Object.entries(data.jobs)) {
-        if (id !== job?.id || !['running', 'waiting_network', 'succeeded', 'blocked', 'failed'].includes(job.status)) throw new Error('Invalid job');
+        if (id !== job?.id || !jobIdPattern.test(id) || !allowedStatuses.has(job.status) ||
+            !Number.isSafeInteger(job.cursor) || job.cursor < 0) throw new Error('Invalid job');
       }
       return data.jobs;
     } catch { throw new StoreIntegrityError(); }
@@ -124,6 +135,7 @@ export class EncryptedFileStore {
   async get(id) { await this.#writeTail; const jobs = await this.#load(); return Object.hasOwn(jobs, id) ? copy(jobs[id]) : null; }
   async list() { await this.#writeTail; return Object.values(await this.#load()).map(copy); }
   async createIfAbsent(job) {
+    assertJob(job);
     return this.#write(jobs => {
       if (Object.hasOwn(jobs, job.id)) return { modified: false, value: false };
       jobs[job.id] = copy(job);
@@ -131,6 +143,7 @@ export class EncryptedFileStore {
     });
   }
   async put(job) {
+    assertJob(job);
     return this.#write(jobs => {
       if (!Object.hasOwn(jobs, job.id)) throw new Error('Cannot replace an unknown job');
       jobs[job.id] = copy(job);
