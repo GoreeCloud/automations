@@ -1,7 +1,7 @@
 import {
   createDraft, validateDraft, importDraft, exportDraft, appendStep,
   removeStep, moveStep, updateStep, setTriggerType, workflowIssues,
-  createHistory, recordHistory, undoHistory, redoHistory, loadStarters, selectStarter,
+  createHistory, recordHistory, undoHistory, redoHistory,
 } from './editor-state.mjs';
 
 const $ = id => document.getElementById(id);
@@ -10,7 +10,6 @@ const MAX_INPUT_CHARS = 8192;
 let history = createHistory(createDraft());
 let workflow = history.present;
 let catalog = {};
-let starters = [];
 let unsaved = false;
 const invalidJsonFields = new Set();
 
@@ -277,36 +276,6 @@ async function init() {
     catalog = {};
     notice('Action catalog is unavailable; preview cannot validate action metadata.', true);
   }
-  // Starters remain inert JSON definitions; no execution or permission grant.
-  try {
-    const response = await fetch('/examples/starter-templates.json', { cache: 'no-store' });
-    if (!response.ok) throw new Error('Templates unavailable');
-    starters = loadStarters(await response.json(), catalog);
-    const picker = $('starter-choice');
-    for (const entry of starters) {
-      const option = document.createElement('option');
-      option.value = entry.id;
-      option.textContent = entry.label;
-      option.title = entry.description;
-      picker.append(option);
-    }
-    $('load-starter').disabled = false;
-  } catch {
-    $('load-starter').disabled = true;
-    notice('Starter templates unavailable. You can still create or import workflows.', true);
-  }
-  $('load-starter').addEventListener('click', () => {
-    if (unsaved && !window.confirm('Replace this unexported definition with a starter?')) return;
-    try {
-      history = createHistory(selectStarter(starters, $('starter-choice').value, catalog));
-      workflow = history.present;
-      unsaved = false;
-      invalidJsonFields.clear();
-      $('preview-output').replaceChildren();
-      render();
-      notice('Starter loaded disabled. Edit and preview before export; no actions have run.');
-    } catch { notice('Starter could not be loaded; existing workflow preserved.', true); }
-  });
   $('workflow-name').addEventListener('input', e => edit({ name: e.target.value }, 'workflow:name'));
   $('workflow-id').addEventListener('input', e => edit({ id: e.target.value }, 'workflow:id'));
   $('workflow-enabled').addEventListener('change', e => edit({ enabled: e.target.checked }));
