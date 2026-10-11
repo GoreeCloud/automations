@@ -5,7 +5,7 @@
 ## Working user journey
 
 1. Run `npm run editor`, then open `http://127.0.0.1:4173/` on that computer. The development server listens on **loopback only**, not on the network.
-2. Start with a **disabled** workflow; edit its name and stable ID, choose an event or UTC interval trigger, and arrange one or more steps. Use the action selector, JSON inputs, optional payload-based conditions, and bounded retry policy. Changes are in memory only: the editor has no autonomous execution or background job service.
+2. Start with a **disabled** workflow; edit its name and stable ID, choose an event or UTC interval trigger, and arrange one or more steps. Use the action selector, JSON inputs, optional payload-based conditions, and bounded retry policy. Undo/redo (32 snapshot limit) is available for editing and step reordering; keyboard shortcuts work outside native input controls. Undo history stays in memory and is cleared on new/import. Changes are in memory only: the editor has no autonomous execution or background job service.
 3. Toggle **Simulate network available** and enter an **example JSON payload**. Press **Preview workflow** to obtain a read-only report from the **same** `previewWorkflow` engine used by the CLI. The report shows disabled/skipped/unavailable/unsafe retry/waiting network/authorization required states. Preview executes **zero** host actions and grants **zero** capabilities.
 4. Export a valid JSON definition through the browser download. The browser never sends it to an external service. Explicitly import it later into a trusted host only after that host performs its own authorization, privacy/security, lifecycle, and idempotency checks. The definition's `enabled` flag is **not** proof of runtime activation.
 5. Import a `.json` file through an explicit file picker; files above 256 KiB and definitions failing `previewWorkflow` validation are rejected. No file is automatically discovered, uploaded, or run. Existing state is preserved on import failure.
@@ -14,10 +14,10 @@ The included metadata catalog has only illustrative `local.note` and `remote.sen
 
 ## Implementation and safety
 
-- `web/index.html`: semantic page, visible development status, keyboard-accessible buttons, labeled inputs, screen-reader status, skip link and controls.
+- `web/index.html`: semantic page, visible development status, keyboard-accessible buttons, labeled inputs, screen-reader status, skip link, and undo/redo controls.
 - `web/editor.css`: adaptive desktop/mobile layout; light/dark colors; visible focus; reduced-motion respect; no external fonts or styles.
 - `web/editor-state.mjs`: testable pure editor transformations, safe JSON import/export limits and reuse of the canonical engine preflight.
-- `web/editor.mjs`: browser controller, DOM-based safe text output rather than concatenated untrusted HTML; requires explicit user actions for import, export and preview.
+- `web/editor.mjs`: browser controller, 32-level in-memory undo/redo, keyboard focus recovery after structural edits, DOM-based safe text output rather than concatenated untrusted HTML; requires explicit user actions for import, export and preview.
 - `bin/serve-editor.mjs`: local-only HTTP static allowlist, CSP, MIME nosniff, no server storage, no APIs, no remote listeners or third-party code.
 
 **Security constraints:** This is an *authoring interface*, not an executor. Real runtime actions still need GoreeCloud Identity, Privacy Shield, Wardveil, Policy and device-local least-privilege enforcement. Preview must never be treated as permission. For retry safety, a checkbox is not evidence of durable target-side idempotency: the execution adapter retains that duty. Credentials should never be entered in workflow input JSON; production secret references and secure storage are future features.
