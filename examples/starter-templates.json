@@ -1,0 +1,93 @@
+[
+  {
+    "id": "quick-capture",
+    "label": "Quick capture",
+    "description": "Create a local note from an explicit event",
+    "workflow": {
+      "id": "quick-capture",
+      "version": 1,
+      "name": "Quick capture",
+      "enabled": false,
+      "triggers": [
+        {
+          "type": "event",
+          "name": "capture.received"
+        }
+      ],
+      "steps": [
+        {
+          "id": "save-note",
+          "action": "local.note",
+          "input": {
+            "title": "New capture"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "hourly-reminder",
+    "label": "Hourly reminder draft",
+    "description": "A scheduled local note; a future host must supply wakeups",
+    "workflow": {
+      "id": "hourly-reminder",
+      "version": 1,
+      "name": "Hourly reminder",
+      "enabled": false,
+      "triggers": [
+        {
+          "type": "interval",
+          "everyMs": 3600000,
+          "anchorAt": "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      "steps": [
+        {
+          "id": "local-reminder",
+          "action": "local.note",
+          "input": {
+            "title": "Review priorities"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "optional-delivery",
+    "label": "Optional delivery",
+    "description": "Create a note, then request an online action only when approved",
+    "workflow": {
+      "id": "optional-delivery",
+      "version": 1,
+      "name": "Optional delivery",
+      "enabled": false,
+      "triggers": [
+        {
+          "type": "event",
+          "name": "draft.ready"
+        }
+      ],
+      "steps": [
+        {
+          "id": "save-draft",
+          "action": "local.note",
+          "input": {
+            "title": "Draft ready"
+          }
+        },
+        {
+          "id": "deliver",
+          "action": "remote.send",
+          "input": {
+            "subject": "Draft ready"
+          },
+          "when": {
+            "op": "eq",
+            "path": "payload.approved",
+            "value": true
+          }
+        }
+      ]
+    }
+  }
+]
