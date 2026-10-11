@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>GoreeCloud Automations · Workflow Studio (Development)</title>
+  <link rel="stylesheet" href="/web/editor.css">
+  <script type="module" src="/web/editor.mjs"></script>
+</head>
+<body>
+  <a class="skip-link" href="#editor">Skip to workflow editor</a>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">✦</span><div><strong>GoreeCloud</strong><small>Automations · Workflow Studio</small></div></div>
+    <span class="environment" aria-label="Development environment">Development · Local-only</span>
+  </header>
+  <main class="shell">
+    <div class="intro"><div><p class="eyebrow">Offline-first authoring</p><h1>Build a workflow</h1><p>Arrange steps, inspect permissions and network needs, then export a portable definition. Preview cannot execute actions.</p></div>
+      <div class="actions"><button id="new-workflow" type="button" class="secondary">New</button><button id="import-workflow" type="button" class="secondary">Import JSON</button><button id="export-workflow" type="button" class="primary">Export JSON</button><input type="file" accept="application/json,.json" id="workflow-file" hidden></div></div>
+    <div class="workspace">
+      <section class="panel editor-panel" aria-labelledby="workflow-heading" id="editor">
+        <div class="section-header"><div><p class="eyebrow">1 · Define</p><h2 id="workflow-heading">Workflow details</h2></div><label class="toggle"><input type="checkbox" id="workflow-enabled"><span>Enabled in exported definition</span></label></div>
+        <div class="form-grid">
+          <label>Workflow name <input id="workflow-name" type="text" maxlength="180" autocomplete="off"></label>
+          <label>Workflow ID <input id="workflow-id" type="text" maxlength="128" spellcheck="false" autocomplete="off"></label>
+        </div>
+        <fieldset class="trigger"><legend>Trigger</legend><div class="form-grid"><label>Type<select id="trigger-type"><option value="event">Event</option><option value="interval">Scheduled interval</option></select></label><label id="event-name-control">Event name<input id="event-name" type="text" spellcheck="false" autocomplete="off"></label><label id="interval-duration-control" hidden>Repeat every (minutes)<input id="interval-minutes" type="number" min="1" max="44640" step="1"></label><label id="interval-anchor-control" hidden>Anchor (UTC ISO 8601)<input id="interval-anchor" type="text" spellcheck="false"></label></div></fieldset>
+        <div class="section-header step-heading"><div><p class="eyebrow">2 · Compose</p><h2>Steps <span id="step-count" class="muted"></span></h2></div><button id="add-step" type="button" class="secondary">+ Add step</button></div>
+        <ol id="step-list" class="step-list" aria-label="Ordered workflow steps"></ol>
+      </section>
+      <aside class="panel inspector" aria-labelledby="preview-heading">
+        <p class="eyebrow">3 · Inspect</p><h2 id="preview-heading">Safe preview</h2><p class="hint">A point-in-time forecast, not execution or authorization. No credentials or account connections are requested.</p>
+        <label class="toggle network"><input id="preview-online" type="checkbox"><span>Simulate network available</span></label>
+        <label>Sample event payload (JSON object)<textarea id="preview-payload" rows="5" spellcheck="false">{}</textarea></label>
+        <button id="preview-button" class="primary full" type="button">Preview workflow</button>
+        <div id="status" class="notice" role="status" aria-live="polite">Ready to preview. No actions have run.</div>
+        <div id="preview-output" aria-label="Preview results"></div>
+        <div class="safety-note"><strong>Security boundary</strong><p>Actions are metadata only. Identity, Policy, Privacy Shield and Wardveil checks happen in a future host runtime—not here.</p></div>
+      </aside>
+    </div>
+    <footer>Glaze V1.7-aligned design candidate · Consumer acceptance pending · No deployment, automation execution or cloud login.</footer>
+  </main>
+</body>
+</html>

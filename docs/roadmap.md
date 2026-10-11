@@ -54,3 +54,10 @@
 - Added portable read-only workflow preflight, metadata catalog and offline CLI for a practical authoring/inspection flow, without granting permissions or invoking actions.
 - Added a separate-process SIGKILL regression that validates non-idempotent side-effect uncertainty is blocked after reopening encrypted state. Process termination does not substitute for device power-loss qualification.
 - Next: Glaze workflow editor with an explicit review/activate flow, native host adapters, real secure key custody, transactional storage, and OS background-execution qualification.
+
+
+## October 11 visual authoring development slice
+
+- Implemented: responsive local-loopback-only Workflow Studio, accessible labels/keyboard controls, event/interval definition editing, condition/retry/step order editing, explicit JSON import/export, read-only preflight.
+- Tested in development: editor state transformations, HTTP route allowlist, CSP and denial of server writes, plus Chromium isolated-page smoke testing of preview and step editing. **Not** Glaze consumer acceptance, physical-device acceptance, mobile installation or production readiness.
+- Next: exact-version canonical Glaze 1.7.0 runtime adoption, broader keyboard/assistive-tech and representative device testing, secure draft storage, host event providers and native scheduling.
