@@ -6,6 +6,34 @@ const safeId = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/;
 const MAX_BYTES = 256 * 1024;
 const MAX_STEPS = 128;
 
+
+/** In-memory undo history. Never persists workflow data or invokes actions. */
+export function createHistory(initial, limit = 32) {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 128) throw new RangeError('Invalid undo limit');
+  return { past: [], present: clone(initial), future: [], limit, group: null };
+}
+
+/** Coalesce consecutive edits of one text field into a single undo point. */
+export function recordHistory(history, next, group = null) {
+  const present = clone(next);
+  if (JSON.stringify(history.present) === JSON.stringify(present)) return history;
+  const grouped = typeof group === 'string' && group.length > 0 && group === history.group && history.past.length > 0;
+  const past = grouped ? history.past.slice() : [...history.past, clone(history.present)].slice(-history.limit);
+  return { past, present, future: [], limit: history.limit, group: grouped ? group : (group || null) };
+}
+
+export function undoHistory(history) {
+  if (!history.past.length) return history;
+  return { past: history.past.slice(0, -1), present: clone(history.past.at(-1)),
+    future: [clone(history.present), ...history.future].slice(0, history.limit), limit: history.limit, group: null };
+}
+
+export function redoHistory(history) {
+  if (!history.future.length) return history;
+  return { past: [...history.past, clone(history.present)].slice(-history.limit),
+    present: clone(history.future[0]), future: history.future.slice(1), limit: history.limit, group: null };
+}
+
 export function createDraft() {
   return {
     id: 'new-workflow', version: 1, name: 'Untitled workflow', enabled: false,
