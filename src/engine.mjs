@@ -2,6 +2,11 @@
 const safeId = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/;
 const forbidden = new Set(['__proto__', 'constructor', 'prototype']);
 const copy = (value) => JSON.parse(JSON.stringify(value));
+const intervalMinMs = 60_000;
+const intervalMaxMs = 31 * 24 * 60 * 60 * 1000;
+const utcTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const validUtc = value => typeof value === 'string' && utcTimestamp.test(value) &&
+  Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 
 export class MemoryStore {
   #jobs = new Map();
@@ -23,8 +28,13 @@ function validateWorkflow(input) {
   }
   if (w.enabled !== true && w.enabled !== false) throw new TypeError('enabled must be boolean');
   if (!Array.isArray(w.triggers) || w.triggers.length < 1 || w.triggers.length > 16 ||
-      w.triggers.some(t => t.type !== 'event' || !safeId.test(t.name || ''))) {
-    throw new TypeError('Only named event triggers are supported in version 1');
+      w.triggers.some(t => !t || (t.type === 'event'
+        ? !safeId.test(t.name || '')
+        : t.type === 'interval'
+          ? !Number.isSafeInteger(t.everyMs) || t.everyMs < intervalMinMs ||
+            t.everyMs > intervalMaxMs || !validUtc(t.anchorAt)
+          : true))) {
+    throw new TypeError('Invalid event or interval trigger');
   }
   if (!Array.isArray(w.steps) || !w.steps.length || w.steps.length > 128) {
     throw new TypeError('Workflow needs 1-128 steps');
@@ -136,7 +146,50 @@ export class WorkflowEngine {
     });
   }
 
+  /**
+   * One deterministic interval occurrence per trigger at the supplied UTC tick.
+   * The host supplies OS-allowed wakeups. Missed earlier slots are deliberately
+   * skipped (latest-only) and no background scheduling is implied.
+   */
+  async tick(at = this.now()) {
+    if (!validUtc(at)) throw new TypeError('tick needs a canonical UTC timestamp');
+    const instant = Date.parse(at);
+    const runs = [];
+    for (const workflow of this.#workflows.values()) {
+      if (!workflow.enabled) continue;
+      for (const [index, trigger] of workflow.triggers.entries()) {
+        if (trigger.type !== 'interval') continue;
+        const anchor = Date.parse(trigger.anchorAt);
+        if (instant < anchor) continue;
+        const slot = Math.floor((instant - anchor) / trigger.everyMs);
+        const due = anchor + slot * trigger.everyMs;
+        const eventId = `interval-${index}-${due}`;
+        runs.push(this.run(workflow.id, { eventId, payload: {
+          scheduledAt: new Date(due).toISOString(), triggerType: 'interval',
+        } }));
+      }
+    }
+    return Promise.all(runs);
+  }
+
   async pending() { return (await this.store.list()).filter(j => j.status === 'waiting_network'); }
+
+  /** Process queued network steps only when a host explicitly invokes this. */
+  async resumePending() {
+    const jobs = await this.pending();
+    return Promise.all(jobs.map(job => this.resume(job.id)));
+  }
+
+  /** Cancel only a queued network step; an already-running effect cannot be undone. */
+  async cancel(jobId) {
+    return this.#singleFlight(jobId, async () => {
+      const job = await this.store.get(jobId);
+      if (!job) throw new Error('Unknown job');
+      if (job.status !== 'waiting_network') return job;
+      delete job.inflightStepId;
+      return this.#set(job, 'cancelled');
+    });
+  }
 
   /**
    * Inspect interruption survivors. Never blindly replay a side-effecting
