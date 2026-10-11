@@ -1,0 +1,13 @@
+{
+  "name": "GoreeCloud Automations — Workflow Studio (Development)",
+  "short_name": "Automations Dev",
+  "description": "Development-only local offline workflow authoring and safe preview.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#101a30",
+  "theme_color": "#1b3f87",
+  "icons": [
+    {"src":"/web/icon.svg", "sizes":"any", "type":"image/svg+xml", "purpose":"any"}
+  ]
+}
