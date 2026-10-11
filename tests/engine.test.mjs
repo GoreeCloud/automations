@@ -93,3 +93,62 @@ test('in-flight deduplication prevents concurrent duplicate dispatch within one 
   await Promise.all(Array.from({length: 6}, () => e.run('morning', {eventId: 'same'})));
   assert.equal(calls, 1);
 });
+
+test('UTC interval trigger executes latest due slot only, with stable deduplication', async () => {
+  const observations = [];
+  const e = setup();
+  e.registerAction('local.note', { capability: 'notes.write', execute: async ({ payload, idempotencyKey }) => {
+    observations.push({ at: payload.scheduledAt, key: idempotencyKey });
+  }});
+  e.registerWorkflow({ id: 'hourly', version: 1, name: 'Hourly', enabled: true,
+    triggers: [{ type: 'interval', everyMs: 60_000, anchorAt: '2026-10-11T00:00:00.000Z' }],
+    steps: [actionStep('save')] });
+  assert.deepEqual(await e.tick('2026-10-10T23:59:59.999Z'), []);
+  const [first] = await e.tick('2026-10-11T00:05:10.000Z');
+  assert.equal(first.id, 'hourly:interval-0-1791677100000');
+  assert.equal(first.status, 'succeeded');
+  await e.tick('2026-10-11T00:05:59.999Z');
+  assert.equal(observations.length, 1);
+  assert.equal(observations[0].at, '2026-10-11T00:05:00.000Z');
+  const [second] = await e.tick('2026-10-11T00:06:01.000Z');
+  assert.equal(second.status, 'succeeded');
+  assert.equal(observations.length, 2);
+  assert.equal(observations[1].at, '2026-10-11T00:06:00.000Z');
+  assert.ok(observations.every(x => x.key.endsWith(':save')));
+});
+
+test('interval validation rejects invalid calendars, short intervals and malformed ticks', async () => {
+  const e = setup();
+  const make = trigger => ({ id: 'timer', version: 1, name: 'Timer', enabled: true,
+    triggers: [trigger], steps: [actionStep('save')] });
+  assert.throws(() => e.registerWorkflow(make({ type: 'interval', everyMs: 1,
+    anchorAt: '2026-10-11T00:00:00.000Z' })), TypeError);
+  assert.throws(() => e.registerWorkflow(make({ type: 'interval', everyMs: 60_000,
+    anchorAt: '2026-02-30T00:00:00.000Z' })), TypeError);
+  assert.throws(() => e.registerWorkflow(make({ type: 'interval', everyMs: 60_000,
+    anchorAt: '2026-10-11T00:00:00-05:00' })), TypeError);
+  await assert.rejects(() => e.tick('not-a-time'), TypeError);
+});
+
+test('bulk resume and cancellation preserve deferred network work boundaries', async () => {
+  let online = false;
+  const e = setup({ online: () => online });
+  const outputs = [];
+  e.registerAction('remote.send', { capability: 'mail.send', requiresNetwork: true,
+    execute: async ({ idempotencyKey }) => outputs.push(idempotencyKey) });
+  e.registerWorkflow(definition([actionStep('send', 'remote.send')]));
+  const waitingA = await e.run('morning', { eventId: 'a' });
+  const waitingB = await e.run('morning', { eventId: 'b' });
+  assert.equal(waitingA.status, 'waiting_network');
+  assert.equal((await e.cancel(waitingA.id)).status, 'cancelled');
+  assert.equal((await e.resume(waitingA.id)).status, 'cancelled');
+  assert.equal((await e.resumePending())[0].status, 'waiting_network');
+  assert.deepEqual(outputs, []);
+  online = true;
+  const [finished] = await e.resumePending();
+  assert.equal(finished.id, waitingB.id);
+  assert.equal(finished.status, 'succeeded');
+  assert.deepEqual(outputs, ['morning:b:send']);
+  assert.equal((await e.cancel(waitingB.id)).status, 'succeeded');
+  assert.deepEqual(await e.pending(), []);
+});
